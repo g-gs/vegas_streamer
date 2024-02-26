@@ -1,20 +1,14 @@
-### Dev stage
-FROM 889174357220.dkr.ecr.us-west-2.amazonaws.com/deepstream:6.4.0-vegas-dev AS build
-
-USER kwali
-
-## Release stage
-FROM 889174357220.dkr.ecr.us-west-2.amazonaws.com/deepstream:6.4.0-vegas
+FROM 889174357220.dkr.ecr.us-west-2.amazonaws.com/deepstream:6.4-vegas
 
 USER kwali
 
 ENV HOME=/home/kwali
 
-COPY --chown=1010:1010 --from=build /home/kwali/opencv_python*.whl /home/kwali/
+COPY --chown=kwali:kwali ./opencv_python*.whl ${HOME}
 
 RUN python3 -m pip install ${HOME}/opencv_python*.whl
 
-ENV WORKDIR ${HOME}/display_server
+ENV WORKDIR=${HOME}/display_server
 
 RUN mkdir -p ${WORKDIR}
 COPY ./requirements.txt ${WORKDIR}/requirements.txt

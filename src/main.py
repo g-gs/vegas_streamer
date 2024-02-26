@@ -1,4 +1,5 @@
-import asyncio, logging, queue
+import asyncio, logging
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
@@ -10,28 +11,29 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-logger = logging.getLogger("uvicorn")
+logger = logging.getLogger('uvicorn')
 
 UDPSRC_PIPELINE = 'udpsrc port=9999 ! application/x-rtp,encoding-name=JPEG,payload=26 ! queue ! rtpjpegdepay ! jpegparse ! appsink drop=1'
 
-client_queues = queue.deque()
+client_queues = deque()
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory='templates')
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cap = cv2.VideoCapture()
-    asyncio.get_running_loop().run_in_executor(None, consume_pipeline, cap)
+    asyncio.get_running_loop().run_in_executor(ThreadPoolExecutor(), consume_pipeline, cap)
     yield
+
     cap.release()
 
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount('/static', StaticFiles(directory='static'), name='static')
 
 
-def consume_pipeline(cap):
+def consume_pipeline(cap: cv2.VideoCapture):
     cap.open(UDPSRC_PIPELINE, cv2.CAP_GSTREAMER)
     cap.set(cv2.CAP_PROP_FORMAT, -1)
 
@@ -50,12 +52,14 @@ def consume_pipeline(cap):
         cap.release()
 
 
-async def get_frame(client_queue):
+async def get_frame(client_queue: asyncio.Queue):
     while True:
+        # asyncio.Queue uses collections.deque internally, which has atomic popleft and append
+        # methods, so this is actually thread-safe.
         yield await client_queue.get()
 
 
-async def close_client(client_queue):
+async def close_client(client_queue: asyncio.Queue):
     logger.info(f'Current # of clients: {len(client_queues)}')
     client_queues.remove(client_queue)
     logger.info(f'Current # of clients: {len(client_queues)}')
@@ -69,6 +73,6 @@ async def stream(background_tasks: BackgroundTasks):
     return StreamingResponse(get_frame(q), media_type='multipart/x-mixed-replace;boundary=kwali')
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get('/', response_class=HTMLResponse)
 async def main(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html")
+    return templates.TemplateResponse(request=request, name='index.html')
