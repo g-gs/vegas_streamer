@@ -1,0 +1,14 @@
+*.orig
+*.swp
+*.swo
+/tmp/*
+**/#*
+*~
+!.gitkeep
+**/.vscode
+**/*.log*
+*.engine
+*.bin
+*.onnx
+venv/*
+**/__pycache__/*
